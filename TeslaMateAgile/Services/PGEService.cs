@@ -30,14 +30,29 @@ public class PGEService : IDynamicPriceDataService
         // We need to fetch data to cover the requested period
         var prices = new List<Price>();
         
-        // Group requests by date range to minimize API calls
-        var currentDate = from.Date;
-        var endDate = to.Date;
+        // Expand the date range to ensure we get complete coverage
+        // Convert to Pacific time to determine the correct local dates to request
+        var pacificTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        var fromPacific = TimeZoneInfo.ConvertTimeFromUtc(from.UtcDateTime, pacificTimeZone);
+        var toPacific = TimeZoneInfo.ConvertTimeFromUtc(to.UtcDateTime, pacificTimeZone);
         
+        _logger.LogDebug("UTC range: {FromUTC} to {ToUTC}", from.UtcDateTime, to.UtcDateTime);
+        _logger.LogDebug("Pacific range: {FromPacific} to {ToPacific}", fromPacific, toPacific);
+        
+        // Request data for all days that might contain the needed intervals
+        var currentDate = fromPacific.Date.AddDays(-1); // Start one day earlier to ensure coverage
+        var endDate = toPacific.Date.AddDays(1); // End one day later to ensure coverage
+        
+        _logger.LogDebug("Will request PGE data for Pacific dates: {StartDate} to {EndDate}", 
+            currentDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+            
         while (currentDate <= endDate)
         {
             var startDateStr = currentDate.ToString("yyyyMMdd");
             var endDateStr = currentDate.AddDays(1).ToString("yyyyMMdd");
+            
+            _logger.LogDebug("Requesting PGE data for Pacific date: {CurrentDate} (startdate={StartDate}, enddate={EndDate})", 
+                currentDate.ToString("yyyy-MM-dd"), startDateStr, endDateStr);
             
             var queryParams = new Dictionary<string, string>
             {
@@ -90,12 +105,30 @@ public class PGEService : IDynamicPriceDataService
                                 expectedIntervalsPerDay, priceCurve.PriceDetails.Count, currentDate.ToString("yyyy-MM-dd"));
                         }
                             
-                        prices.AddRange(priceCurve.PriceDetails.Select(x => new Price
+                        var parsedPrices = priceCurve.PriceDetails.Select(x => {
+                            var validFrom = ParsePGEDateTime(x.StartIntervalTimeStamp);
+                            var validTo = validFrom.AddMinutes(priceCurve.PriceHeader.IntervalLengthInMinutes);
+                            return new Price
+                            {
+                                Value = decimal.Parse(x.IntervalPrice),
+                                ValidFrom = validFrom,
+                                ValidTo = validTo
+                            };
+                        }).ToList();
+                        
+                        // Log first and last interval for this day to verify timezone handling
+                        if (parsedPrices.Count > 0)
                         {
-                            Value = decimal.Parse(x.IntervalPrice),
-                            ValidFrom = ParsePGEDateTime(x.StartIntervalTimeStamp),
-                            ValidTo = ParsePGEDateTime(x.StartIntervalTimeStamp).AddMinutes(priceCurve.PriceHeader.IntervalLengthInMinutes)
-                        }));
+                            var firstPrice = parsedPrices.First();
+                            var lastPrice = parsedPrices.Last();
+                            _logger.LogDebug("Price intervals for {CurrentDate}: {FirstStart} UTC to {LastEnd} UTC ({Count} intervals)", 
+                                currentDate.ToString("yyyy-MM-dd"),
+                                firstPrice.ValidFrom.UtcDateTime, 
+                                lastPrice.ValidTo.UtcDateTime,
+                                parsedPrices.Count);
+                        }
+                        
+                        prices.AddRange(parsedPrices);
                     }
                 }
             }
