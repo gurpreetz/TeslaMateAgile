@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Moq.Contrib.HttpClient;
@@ -27,7 +28,9 @@ public class PGEServiceTests
             Program = "CalFUSE"
         });
         httpClient.BaseAddress = new Uri(pgeOptions.Value.BaseUrl);
-        _subject = new PGEService(httpClient, pgeOptions);
+        
+        var mockLogger = new Mock<ILogger<PGEService>>();
+        _subject = new PGEService(httpClient, pgeOptions, mockLogger.Object);
     }
 
     [Test]
@@ -53,5 +56,47 @@ public class PGEServiceTests
         Assert.That(priceList[4].ValidFrom, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T04:00:00-07:00")));
         Assert.That(priceList[4].ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T05:00:00-07:00")));
         Assert.That(priceList[4].Value, Is.EqualTo(0.14456M));
+    }
+
+    [Test]
+    public void Constructor_ShouldThrowException_WhenRateNameIsEmpty()
+    {
+        var httpClient = new HttpClient();
+        var pgeOptions = Options.Create(new PGEOptions 
+        { 
+            BaseUrl = "https://pge-pe-api.gridx.com",
+            Utility = "PGE",
+            Market = "DAM",
+            RateName = "", // Empty RateName
+            RepresentativeCircuitId = "083611114",
+            Program = "CalFUSE"
+        });
+        var mockLogger = new Mock<ILogger<PGEService>>();
+        
+        var ex = Assert.Throws<InvalidOperationException>(() => 
+            new PGEService(httpClient, pgeOptions, mockLogger.Object));
+        
+        Assert.That(ex.Message, Does.Contain("PGE RateName is required"));
+    }
+
+    [Test]
+    public void Constructor_ShouldThrowException_WhenRepresentativeCircuitIdIsEmpty()
+    {
+        var httpClient = new HttpClient();
+        var pgeOptions = Options.Create(new PGEOptions 
+        { 
+            BaseUrl = "https://pge-pe-api.gridx.com",
+            Utility = "PGE",
+            Market = "DAM",
+            RateName = "EV2A",
+            RepresentativeCircuitId = "", // Empty RepresentativeCircuitId
+            Program = "CalFUSE"
+        });
+        var mockLogger = new Mock<ILogger<PGEService>>();
+        
+        var ex = Assert.Throws<InvalidOperationException>(() => 
+            new PGEService(httpClient, pgeOptions, mockLogger.Object));
+        
+        Assert.That(ex.Message, Does.Contain("PGE RepresentativeCircuitId is required"));
     }
 }
