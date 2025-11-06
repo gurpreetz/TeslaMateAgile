@@ -13,10 +13,10 @@ public class PGEOptions
     [Required]
     public string Market { get; set; }
 
-    [Required(ErrorMessage = "RateName is required. Please specify your PGE rate plan (e.g., 'EV2A', 'E-TOU-C', etc.)")]
+    [Required]
     public string RateName { get; set; }
 
-    [Required(ErrorMessage = "RepresentativeCircuitId is required. Please specify your PGE representative circuit ID for your service territory.")]
+    [Required]
     public string RepresentativeCircuitId { get; set; }
 
     [Required]

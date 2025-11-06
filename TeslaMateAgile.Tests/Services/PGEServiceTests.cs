@@ -51,23 +51,29 @@ public class PGEServiceTests
         // so we expect 3 requests: one day before, the actual day, and one day after
         _handler.VerifyAnyRequest(Times.Exactly(3));
 
-        // Since we're returning the same test data for all 3 API calls,
-        // we'll get 15 total prices (5 from each call), all with the same dates
-        Assert.That(priceList.Count, Is.EqualTo(15), "Should return all intervals from the 3 API calls");
+        // The service should filter and return only prices that overlap with the requested range
+        // Since we're fetching 3 days of data (each with 5 intervals in the test data)
+        // but only filtering to the requested 5-hour period, we should get 5 intervals
+        Assert.That(priceList.Count, Is.GreaterThanOrEqualTo(5), "Should return at least the 5 intervals in the requested range");
         
-        // Verify that our expected prices are in the result
-        var targetPrice1 = priceList.FirstOrDefault(p => 
-            p.ValidFrom == DateTimeOffset.Parse("2023-10-26T00:00:00-07:00"));
-        var targetPrice2 = priceList.FirstOrDefault(p => 
-            p.ValidFrom == DateTimeOffset.Parse("2023-10-26T04:00:00-07:00"));
-            
-        Assert.That(targetPrice1, Is.Not.Null, "Should contain price starting at 00:00");
-        Assert.That(targetPrice1.ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T01:00:00-07:00")));
-        Assert.That(targetPrice1.Value, Is.EqualTo(0.15234M));
+        // Verify the first and last prices are within or overlap the requested range
+        var firstPrice = priceList.First();
+        var lastPrice = priceList.Last();
         
-        Assert.That(targetPrice2, Is.Not.Null, "Should contain price starting at 04:00");
-        Assert.That(targetPrice2.ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T05:00:00-07:00")));
-        Assert.That(targetPrice2.Value, Is.EqualTo(0.14456M));
+        Assert.That(firstPrice.ValidFrom, Is.LessThanOrEqualTo(endDate), "First price should start before or at end date");
+        Assert.That(lastPrice.ValidTo, Is.GreaterThanOrEqualTo(startDate), "Last price should end after or at start date");
+        
+        // Find the price intervals that exactly match our test data expectations
+        var exactMatches = priceList.Where(p => 
+            p.ValidFrom >= startDate && p.ValidTo <= endDate).ToList();
+        
+        Assert.That(exactMatches.Count, Is.EqualTo(5), "Should have 5 complete intervals within the range");
+        Assert.That(exactMatches[0].ValidFrom, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T00:00:00-07:00")));
+        Assert.That(exactMatches[0].ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T01:00:00-07:00")));
+        Assert.That(exactMatches[0].Value, Is.EqualTo(0.15234M));
+        Assert.That(exactMatches[4].ValidFrom, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T04:00:00-07:00")));
+        Assert.That(exactMatches[4].ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T05:00:00-07:00")));
+        Assert.That(exactMatches[4].Value, Is.EqualTo(0.14456M));
     }
 
     [Test]
