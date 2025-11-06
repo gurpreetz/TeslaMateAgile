@@ -47,15 +47,27 @@ public class PGEServiceTests
         var prices = await _subject.GetPriceData(startDate, endDate);
         var priceList = prices.ToList();
 
-        _handler.VerifyAnyRequest(Times.Once());
+        // The service now requests multiple days (with buffer days for timezone handling)
+        // so we expect 3 requests: one day before, the actual day, and one day after
+        _handler.VerifyAnyRequest(Times.Exactly(3));
 
-        Assert.That(priceList.Count, Is.EqualTo(5));
-        Assert.That(priceList[0].ValidFrom, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T00:00:00-07:00")));
-        Assert.That(priceList[0].ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T01:00:00-07:00")));
-        Assert.That(priceList[0].Value, Is.EqualTo(0.15234M));
-        Assert.That(priceList[4].ValidFrom, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T04:00:00-07:00")));
-        Assert.That(priceList[4].ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T05:00:00-07:00")));
-        Assert.That(priceList[4].Value, Is.EqualTo(0.14456M));
+        // Since we're returning the same test data for all 3 API calls,
+        // we'll get 15 total prices (5 from each call), all with the same dates
+        Assert.That(priceList.Count, Is.EqualTo(15), "Should return all intervals from the 3 API calls");
+        
+        // Verify that our expected prices are in the result
+        var targetPrice1 = priceList.FirstOrDefault(p => 
+            p.ValidFrom == DateTimeOffset.Parse("2023-10-26T00:00:00-07:00"));
+        var targetPrice2 = priceList.FirstOrDefault(p => 
+            p.ValidFrom == DateTimeOffset.Parse("2023-10-26T04:00:00-07:00"));
+            
+        Assert.That(targetPrice1, Is.Not.Null, "Should contain price starting at 00:00");
+        Assert.That(targetPrice1.ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T01:00:00-07:00")));
+        Assert.That(targetPrice1.Value, Is.EqualTo(0.15234M));
+        
+        Assert.That(targetPrice2, Is.Not.Null, "Should contain price starting at 04:00");
+        Assert.That(targetPrice2.ValidTo, Is.EqualTo(DateTimeOffset.Parse("2023-10-26T05:00:00-07:00")));
+        Assert.That(targetPrice2.Value, Is.EqualTo(0.14456M));
     }
 
     [Test]
