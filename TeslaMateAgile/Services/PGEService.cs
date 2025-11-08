@@ -21,17 +21,6 @@ public class PGEService : IDynamicPriceDataService
         _options = options.Value;
         _logger = logger;
         
-        // Validate required configuration
-        if (string.IsNullOrWhiteSpace(_options.RateName))
-        {
-            throw new InvalidOperationException("PGE RateName is required. Please configure your PGE rate plan (e.g., 'EV2A', 'E-TOU-C') in appsettings.json");
-        }
-        
-        if (string.IsNullOrWhiteSpace(_options.RepresentativeCircuitId))
-        {
-            throw new InvalidOperationException("PGE RepresentativeCircuitId is required. Please configure your PGE representative circuit ID in appsettings.json");
-        }
-        
         _logger.LogInformation("PGE Service initialized with RateName: {RateName}, Circuit: {CircuitId}", 
             _options.RateName, _options.RepresentativeCircuitId);
     }
